@@ -1,6 +1,6 @@
 const express = require("express");
 const app = express();
-__path = process.cwd();
+const __path = process.cwd();
 const bodyParser = require("body-parser");
 const PORT = process.env.PORT || 8000;
 let code = require("./pair");
@@ -18,3 +18,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
