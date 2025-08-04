@@ -98,7 +98,7 @@ router.get("/", async (req, res) => {
           await delay(4000);
           const user_jid = jidNormalizedUser(sock.user.id);
           const mega_url = await upload(
-            fs.createReadStream("./session/creds.json"),
+            if (!fs.existsSync("./session/creds.json")) return;
             `${randomMegaId()}.json`
           );
           const sessionId = mega_url.replace("https://mega.nz/file/", "");
@@ -152,4 +152,5 @@ process.on("uncaughtException", (err) => {
 });
 
 module.exports = router;
+
 
