@@ -1,7 +1,7 @@
 const express = require("express");
 const fs = require("fs");
 const { exec } = require("child_process");
-let router = express.Router();
+const router = express.Router();
 const pino = require("pino");
 const {
   default: makeWASocket,
@@ -13,118 +13,141 @@ const {
 } = require("@whiskeysockets/baileys");
 const { upload } = require("./mega");
 
-function removeFile(FilePath) {
-  if (!fs.existsSync(FilePath)) return false;
-  fs.rmSync(FilePath, { recursive: true, force: true });
+// Config
+const NUMBER_LINK = "https://wa.me/94776907496";
+const IMAGE_URL = "https://raw.githubusercontent.com/shashika2008/-/refs/heads/main/file_000000007a5461f7b6d4c867938ac29b.png";
+
+// Helper: Delete session folder
+async function removeFile(filePath) {
+  try {
+    await fs.promises.rm(filePath, { recursive: true, force: true });
+  } catch {}
 }
 
+// Helper: Random MEGA filename
+function randomMegaId(length = 6, numberLength = 4) {
+  const characters =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += characters.charAt(Math.floor(Math.random() * characters.length));
+  }
+  const number = Math.floor(Math.random() * Math.pow(10, numberLength))
+    .toString()
+    .padStart(numberLength, "0");
+  return `${result}${number}`;
+}
+
+// Custom Caption Function
+function getCustomCaption(sessionId) {
+  return `┏━━━◥◣◆◢◤━━━━┓
+Black wolf ﮩ٨ـﮩﮩ٨ـsl bot
+╰┈➤ ❝ [powered by Shashika]
+
+┗━━━◢◤◆◥◣━━━━┛
+
+
+°•.•╔✿════๏⊙๏════✿╗•.•°
+,💀 sessions id hear💀
+.•°•.•. .•.•°•.
+🖇️This is your session id🖇️
+📍 Copy this id 👉 past into config.js fill 📍
+
+${sessionId}
+
+.•°•╚✿════๏⊙๏════✿╝•°•.
+
+╔════▣◎▣════╗
+Contact us ~(${NUMBER_LINK})
+╚════▣◎▣════╝
+
+°•.•╔✿════๏⊙๏════✿╗•.
+        Thank you for joining .
+               Black Wolf 
+       ✿༻༺✿·.━⋅━⋅━╯`;
+}
+
+// Route
 router.get("/", async (req, res) => {
-  let num = req.query.number;
-  async function RobinPair() {
-    const { state, saveCreds } = await useMultiFileAuthState(`./session`);
-    try {
-      let RobinPairWeb = makeWASocket({
-        auth: {
-          creds: state.creds,
-          keys: makeCacheableSignalKeyStore(
-            state.keys,
-            pino({ level: "fatal" }).child({ level: "fatal" })
-          ),
-        },
-        printQRInTerminal: false,
-        logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-        browser: Browsers.macOS("Safari"),
-      });
+  try {
+    let num = req.query.number;
+    if (!num || typeof num !== "string" || !num.match(/^\+?[0-9]+$/)) {
+      return res.status(400).send({ error: "Invalid or missing number" });
+    }
 
-      if (!RobinPairWeb.authState.creds.registered) {
-        await delay(1500);
-        num = num.replace(/[^0-9]/g, "");
-        const code = await RobinPairWeb.requestPairingCode(num);
-        if (!res.headersSent) {
-          await res.send({ code });
+    num = num.replace(/[^0-9]/g, "");
+    const { state, saveCreds } = await useMultiFileAuthState("./session");
+
+    const sock = makeWASocket({
+      auth: {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "fatal" })),
+      },
+      printQRInTerminal: false,
+      logger: pino({ level: "fatal" }),
+      browser: Browsers.macOS("Safari"),
+    });
+
+    sock.ev.on("creds.update", saveCreds);
+
+    sock.ev.on("connection.update", async (update) => {
+      const { connection, lastDisconnect } = update;
+
+      if (connection === "open") {
+        try {
+          await delay(4000);
+          const user_jid = jidNormalizedUser(sock.user.id);
+          const mega_url = await upload(
+            fs.createReadStream("./session/creds.json"),
+            `${randomMegaId()}.json`
+          );
+          const sessionId = mega_url.replace("https://mega.nz/file/", "");
+          const caption = getCustomCaption(sessionId);
+
+          // Send Image + Caption
+          await sock.sendMessage(user_jid, {
+            image: { url: IMAGE_URL },
+            caption,
+          });
+
+          // Optional: Send session ID & warning text
+          await sock.sendMessage(user_jid, { text: sessionId });
+          await sock.sendMessage(user_jid, {
+            text: "🛑 Do not share this code with anyone 🛑",
+          });
+
+          await removeFile("./session");
+        } catch (e) {
+          console.error("Error sending session:", e);
+          exec("pm2 restart prabath");
         }
+      } else if (
+        connection === "close" &&
+        lastDisconnect?.error?.output?.statusCode !== 401
+      ) {
+        await delay(10000);
+        console.log("Reconnecting after disconnect...");
       }
+    });
 
-      RobinPairWeb.ev.on("creds.update", saveCreds);
-      RobinPairWeb.ev.on("connection.update", async (s) => {
-        const { connection, lastDisconnect } = s;
-        if (connection === "open") {
-          try {
-            await delay(10000);
-            const sessionPrabath = fs.readFileSync("./session/creds.json");
-
-            const auth_path = "./session/";
-            const user_jid = jidNormalizedUser(RobinPairWeb.user.id);
-
-            function randomMegaId(length = 6, numberLength = 4) {
-              const characters =
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-              let result = "";
-              for (let i = 0; i < length; i++) {
-                result += characters.charAt(
-                  Math.floor(Math.random() * characters.length)
-                );
-              }
-              const number = Math.floor(
-                Math.random() * Math.pow(10, numberLength)
-              );
-              return `${result}${number}`;
-            }
-
-            const mega_url = await upload(
-              fs.createReadStream(auth_path + "creds.json"),
-              `${randomMegaId()}.json`
-            );
-
-            const string_session = mega_url.replace(
-              "https://mega.nz/file/",
-              ""
-            );
-
-            const sid = `*ROBIN [The powerful WA BOT]*\n\n👉 ${string_session} 👈\n\n*This is the your Session ID, copy this id and paste into config.js file*\n\n*You can ask any question using this link*\n\n*wa.me/message/WKGLBR2PCETWD1*\n\n*You can join my whatsapp group*\n\n*https://chat.whatsapp.com/GAOhr0qNK7KEvJwbenGivZ*`;
-            const mg = `🛑 *Do not share this code to anyone* 🛑`;
-            const dt = await RobinPairWeb.sendMessage(user_jid, {
-              image: {
-                url: "https://raw.githubusercontent.com/Dark-Robin/Bot-Helper/refs/heads/main/autoimage/Bot%20robin%20WP.jpg",
-              },
-              caption: sid,
-            });
-            const msg = await RobinPairWeb.sendMessage(user_jid, {
-              text: string_session,
-            });
-            const msg1 = await RobinPairWeb.sendMessage(user_jid, { text: mg });
-          } catch (e) {
-            exec("pm2 restart prabath");
-          }
-
-          await delay(100);
-          return await removeFile("./session");
-          process.exit(0);
-        } else if (
-          connection === "close" &&
-          lastDisconnect &&
-          lastDisconnect.error &&
-          lastDisconnect.error.output.statusCode !== 401
-        ) {
-          await delay(10000);
-          RobinPair();
-        }
-      });
-    } catch (err) {
-      exec("pm2 restart Robin-md");
-      console.log("service restarted");
-      RobinPair();
-      await removeFile("./session");
-      if (!res.headersSent) {
-        await res.send({ code: "Service Unavailable" });
-      }
+    if (!sock.authState.creds.registered) {
+      const code = await sock.requestPairingCode(num);
+      return res.send({ code });
+    } else {
+      return res.send({ message: "Already registered" });
+    }
+  } catch (err) {
+    console.error("Fatal error in pair.js:", err);
+    exec("pm2 restart Robin-md");
+    await removeFile("./session");
+    if (!res.headersSent) {
+      return res.status(503).send({ error: "Service Unavailable" });
     }
   }
-  return await RobinPair();
 });
 
-process.on("uncaughtException", function (err) {
-  console.log("Caught exception: " + err);
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
   exec("pm2 restart Robin");
 });
 
