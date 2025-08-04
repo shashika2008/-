@@ -119,7 +119,7 @@ router.get("/", async (req, res) => {
           await removeFile("./session");
         } catch (e) {
           console.error("Error sending session:", e);
-          exec("pm2 restart prabath");
+          exec("pm2 restart BlackWolfBot");
         }
       } else if (
         connection === "close" &&
@@ -138,7 +138,7 @@ router.get("/", async (req, res) => {
     }
   } catch (err) {
     console.error("Fatal error in pair.js:", err);
-    exec("pm2 restart Robin-md");
+    exec("pm2 restart BlackWolfBot");
     await removeFile("./session");
     if (!res.headersSent) {
       return res.status(503).send({ error: "Service Unavailable" });
@@ -148,7 +148,8 @@ router.get("/", async (req, res) => {
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
-  exec("pm2 restart Robin");
+  exec("pm2 restart BlackWolfBot");
 });
 
 module.exports = router;
+
